@@ -1,0 +1,38 @@
+{
+  "name": "armitage-ops",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "dev:3001": "NEXT_DIST_DIR=.next-3001 next dev -p 3001",
+    "preview:setup:3001": "node scripts/setup-preview-server.mjs",
+    "build": "next build",
+    "start": "next start",
+    "test": "node --experimental-strip-types --test 'lib/**/*.test.mjs'",
+    "lint": "next lint",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.6.0",
+    "@swc/helpers": "0.5.15",
+    "next": "15.2.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.1",
+    "@types/react": "^19.0.12",
+    "@types/react-dom": "^19.0.5",
+    "prisma": "^6.6.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  },
+  "optionalDependencies": {
+    "@next/swc-darwin-arm64": "15.2.4"
+  }
+}

@@ -1,0 +1,40 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+.next-*/
+out/
+
+# production / test output
+coverage/
+dist/
+*.log
+
+# local environment
+.env
+.env.local
+.env.*.local
+
+# macOS / editor
+.DS_Store
+
+# local app data and uploads
+storage/*.json
+storage/uploads/
+storage/board-photos/
+storage/operations/
+
+# generated documents and one-off working files
+*.docx
+*.pdf
+ql-*/
+word-rendered-*/
+outputs/
+word-documents/
+swift-module-cache/
+*.applescript
+render_pdf_pages.swift
+build_clarkson_contract.py
+make_contact_sheet.py
+seedance-remodel-*

@@ -1,0 +1,4 @@
+materio_task_name,materio_notes,materio_start,materio_end,task_name,phase_code,area,planned_start,planned_finish,owner,dependency,milestone,readiness_note,needs_pm_fill
+Demo protection,Protect floors and isolate dust,2026-06-01,2026-06-01,Demo protection,DEMO,Kitchen,2026-06-01,2026-06-01,Field crew,,no,Board can be made from this row,no
+Rough electrical,Coordinate fixture locations,2026-06-03,2026-06-05,Rough electrical,ROUGH_MEP,Kitchen,2026-06-03,2026-06-05,Electrician,Demo protection,no,Confirm cabinet layout before start,yes
+Client finish decision,Waiting on final selection,2026-06-06,2026-06-06,Client finish decision,CLIENT,Kitchen,2026-06-06,2026-06-06,PM,Rough electrical,yes,Decision controls ordering and downstream readiness,yes
