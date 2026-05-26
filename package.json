@@ -20,7 +20,7 @@
   "dependencies": {
     "@prisma/client": "^6.6.0",
     "@swc/helpers": "0.5.15",
-    "next": "15.2.4",
+    "next": "^15.3.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -33,6 +33,6 @@
     "typescript": "^5.8.3"
   },
   "optionalDependencies": {
-    "@next/swc-darwin-arm64": "15.2.4"
+    "@next/swc-darwin-arm64": "15.5.18"
   }
 }

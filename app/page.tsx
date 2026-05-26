@@ -1,5 +1,22 @@
 import Link from "next/link";
-import { listOpsProjects, listProjectChangeOrders, listProjectReports } from "@/lib/ops-store";
+import { listOpsProjects, listProjectChangeOrders, listProjectReports, listOpenAlerts } from "@/lib/ops-store";
+
+const SEVERITY_BADGE: Record<string, string> = {
+  CRITICAL: "badge critical",
+  HIGH: "badge high",
+  MEDIUM: "badge medium",
+  LOW: "badge ready",
+};
+
+const ALERT_LABEL: Record<string, string> = {
+  PAYMENT_RISK: "Payment Risk",
+  SEQUENCE_VIOLATION: "Sequence Violation",
+  PREREQUISITE_FAILURE: "Prerequisite",
+  FALSE_PROGRESS: "False Progress",
+  UNOWNED_BLOCKER: "Unowned Blocker",
+  MISSING_PHOTOS: "Missing Photos",
+  UNREALISTIC_TOMORROW: "Unrealistic Plan",
+};
 
 export default async function HomePage() {
   const projects = await listOpsProjects();
@@ -8,11 +25,8 @@ export default async function HomePage() {
   const reports = reportGroups.flat();
   const variances = reports.flatMap((report) => report.variances);
   const changeOrders = changeOrderGroups.flat();
+  const openAlerts = await listOpenAlerts();
   const openBlockers = reports.flatMap((report) => report.blockers);
-  const materialImpactLabel = (variance: { estimatedMaterialImpactDollars?: number; estimatedMaterialImpact?: string }) =>
-    variance.estimatedMaterialImpactDollars !== undefined
-      ? `$${variance.estimatedMaterialImpactDollars}`
-      : variance.estimatedMaterialImpact || "material TBD";
 
   return (
     <div className="grid">
@@ -47,7 +61,7 @@ export default async function HomePage() {
         <div className="ops-stats">
           <div className="stat"><div className="stat-label">Active projects</div><div className="stat-value">{projects.length}</div></div>
           <div className="stat"><div className="stat-label">Field reports</div><div className="stat-value">{reports.length}</div></div>
-          <div className="stat"><div className="stat-label">Open variances</div><div className="stat-value">{variances.length}</div></div>
+          <div className="stat"><div className="stat-label">Open alerts</div><div className="stat-value">{openAlerts.length}</div></div>
           <div className="stat"><div className="stat-label">Change order drafts</div><div className="stat-value">{changeOrders.length}</div></div>
         </div>
       </section>
@@ -56,24 +70,22 @@ export default async function HomePage() {
         <div className="card">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Highest Priority</p>
-              <h2>Variance log</h2>
+              <p className="eyebrow">Requires Action</p>
+              <h2>Open alerts</h2>
             </div>
+            {openAlerts.length > 0 && <span className="kicker">{openAlerts.length} open</span>}
           </div>
           <div className="list">
-            {variances.length ? variances.map((variance) => (
-              <div key={variance.id} className="list-item">
+            {openAlerts.length ? openAlerts.map((a) => (
+              <div key={a.id} className="list-item">
                 <div className="list-row">
-                  <strong>{variance.affectedArea || variance.type}</strong>
-                  <span className="badge high">{variance.type.replace("_", " ")}</span>
+                  <strong>{a.title}</strong>
+                  <span className={SEVERITY_BADGE[a.severity] ?? "badge"}>{a.severity}</span>
                 </div>
-                <p className="muted">{variance.description}</p>
-                <p className="muted">
-                  Impact: {variance.estimatedLaborImpactHours}h labor, {materialImpactLabel(variance)},
-                  {` ${variance.estimatedScheduleImpactDays}`} day(s)
-                </p>
+                <p className="muted">{ALERT_LABEL[a.alertType] ?? a.alertType}</p>
+                <p className="muted">{a.actionRequired}</p>
               </div>
-            )) : <p className="muted">No variances recorded yet.</p>}
+            )) : <p className="muted">No open alerts. Submit a field report to trigger evaluation.</p>}
           </div>
         </div>
         <div className="card">

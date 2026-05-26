@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
-import { createFieldReportAction, getDailyBoard, getOpsProject } from "@/lib/ops-store";
-import { globalChangeOrderRules } from "@/lib/global-rules";
+import { createFieldReportAction, getOpsProject } from "@/lib/ops-store";
 import { photoAccept } from "@/lib/upload-accept";
 import { LaborLogEditor } from "@/components/labor-log-editor";
 
@@ -13,7 +12,7 @@ const varianceTypes = ["scope", "schedule", "labor", "cost", "quality", "legal",
 
 export default async function NewFieldReportPage({ params }: NewFieldReportPageProps) {
   const { slug } = await params;
-  const [project, boardTasks] = await Promise.all([getOpsProject(slug), getDailyBoard(slug)]);
+  const project = await getOpsProject(slug);
 
   if (!project) {
     notFound();
@@ -29,73 +28,78 @@ export default async function NewFieldReportPage({ params }: NewFieldReportPageP
   return (
     <div className="report-layout">
       <section className="card">
-        <p className="eyebrow">End-of-day field report</p>
+        <p className="eyebrow">End-of-day report</p>
         <h1>{project.name}</h1>
-        <p className="subtitle">
-          This report is evidence. It records whether the whiteboard plan worked, what failed, and what must change tomorrow.
-        </p>
+        <p className="subtitle">Log what happened today. Takes 5 minutes.</p>
       </section>
 
       <form action={submitReport} className="form-grid">
         <section className="card form-grid">
           <div className="columns">
-            <label><span className="eyebrow">Date</span><input className="input" type="date" name="reportDate" required defaultValue={today} /></label>
-            <label><span className="eyebrow">Submitted by</span><input className="input" name="submittedBy" required placeholder="Field lead" /></label>
+            <label>
+              <span className="eyebrow">Date</span>
+              <input className="input" type="date" name="reportDate" required defaultValue={today} />
+            </label>
+            <label>
+              <span className="eyebrow">Submitted by</span>
+              <input className="input" name="submittedBy" required placeholder="Your name" />
+            </label>
           </div>
-          <label><span className="eyebrow">Crew members</span><input className="input" name="crewMembers" placeholder="Cody, Matt, Luis" /></label>
+          <label>
+            <span className="eyebrow">Crew on site</span>
+            <input className="input" name="crewMembers" placeholder="Matt, Luis, Cody" />
+          </label>
         </section>
 
         <section className="card">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Morning Board</p>
-              <h2>Planned tasks referenced by this report</h2>
-            </div>
-          </div>
-          <div className="list">
-            {boardTasks.map((task) => (
-              <div key={task.id} className="task-report-row">
-                <label className="mini-check"><input type="checkbox" name="plannedTaskIds" value={task.id} /> Planned</label>
-                <div><strong>{task.taskName}</strong><br /><span className="muted">{task.area} · {task.phaseCode}</span></div>
-                <label className="mini-check"><input type="checkbox" name="completedTaskIds" value={task.id} /> Complete</label>
-                <label className="mini-check"><input type="checkbox" name="incompleteTaskIds" value={task.id} /> Incomplete</label>
-              </div>
-            ))}
-          </div>
+          <LaborLogEditor phaseCodes={phaseCodes} />
         </section>
 
         <section className="card form-grid">
-          <p className="eyebrow">Reality</p>
-          <LaborLogEditor phaseCodes={phaseCodes} />
-          <label><span className="eyebrow">Blockers</span><textarea className="textarea" name="blockers" placeholder="One blocker per line" /></label>
-          <label><span className="eyebrow">Tomorrow recommendations</span><textarea className="textarea" name="tomorrowRecommendations" /></label>
+          <label>
+            <span className="eyebrow">Blockers</span>
+            <textarea className="textarea" name="blockers" placeholder="One per line — anything stopping tomorrow's work" />
+          </label>
+          <label>
+            <span className="eyebrow">Tomorrow's plan</span>
+            <textarea className="textarea" name="tomorrowRecommendations" placeholder="What's happening tomorrow?" />
+          </label>
         </section>
 
-        <section className="card form-grid variance-panel">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Variance Log</p>
-              <h2>Highest priority</h2>
-            </div>
-            <span className="badge high">Global rules apply</span>
+        <section className="card form-grid">
+          <p className="eyebrow">Photos</p>
+          <input className="input" type="file" name="photos" multiple accept={photoAccept} />
+          <label>
+            <span className="eyebrow">Captions</span>
+            <textarea className="textarea" name="photoCaptions" placeholder="One caption per photo, one per line" />
+          </label>
+        </section>
+
+        <section className="card form-grid">
+          <div>
+            <p className="eyebrow">Variance</p>
+            <h2>Notable issue?</h2>
+            <p className="muted">Only fill this in if something happened that affects scope, schedule, or cost. PM reviews before any client communication.</p>
           </div>
+          <label>
+            <span className="eyebrow">What happened</span>
+            <textarea
+              className="textarea"
+              name="varianceDescription"
+              placeholder="Describe the issue — what was found, where, and when"
+            />
+          </label>
           <div className="columns">
             <label>
-              <span className="eyebrow">Variance type</span>
+              <span className="eyebrow">Type</span>
               <select className="select" name="varianceType" defaultValue="schedule">
-                {varianceTypes.map((type) => <option key={type} value={type}>{type.replace("_", " ")}</option>)}
+                {varianceTypes.map((type) => (
+                  <option key={type} value={type}>{type.replace(/_/g, " ")}</option>
+                ))}
               </select>
             </label>
-            <label><span className="eyebrow">Affected area</span><input className="input" name="affectedArea" /></label>
-          </div>
-          <label><span className="eyebrow">Description</span><textarea className="textarea" name="varianceDescription" /></label>
-          <div className="columns">
-            <label><span className="eyebrow">Discovered by</span><input className="input" name="discoveredBy" /></label>
-            <label><span className="eyebrow">Discovered date/time</span><input className="input" type="datetime-local" name="discoveredAt" /></label>
-          </div>
-          <div className="columns">
             <label>
-              <span className="eyebrow">Requires change order</span>
+              <span className="eyebrow">Change order?</span>
               <select className="select" name="requiresChangeOrder" defaultValue="unknown">
                 <option value="unknown">Unknown</option>
                 <option value="yes">Yes</option>
@@ -103,30 +107,23 @@ export default async function NewFieldReportPage({ params }: NewFieldReportPageP
               </select>
             </label>
           </div>
-          <div className="ops-stats">
-            <label><span className="eyebrow">Labor impact hours</span><input className="input" type="number" step="0.25" name="laborImpactHours" /></label>
-            <label><span className="eyebrow">Material impact</span><input className="input" name="materialImpact" /></label>
-            <label><span className="eyebrow">Schedule impact days</span><input className="input" type="number" step="1" name="scheduleImpactDays" /></label>
-          </div>
-          <label className="check-row"><input type="checkbox" name="clientNotified" /> <span>Client notified</span></label>
-          <label><span className="eyebrow">Internal notes</span><textarea className="textarea" name="internalNotes" /></label>
-          <div className="list">
-            {globalChangeOrderRules.slice(0, 3).map((rule) => (
-              <div className="list-item" key={rule.trigger}>
-                <strong>{rule.trigger}</strong>
-                <p className="muted">{rule.enforcement}</p>
-              </div>
-            ))}
+          <div className="columns">
+            <label>
+              <span className="eyebrow">Labor hours</span>
+              <input className="input" type="number" step="0.25" min="0" name="laborImpactHours" placeholder="0" />
+            </label>
+            <label>
+              <span className="eyebrow">Material cost ($)</span>
+              <input className="input" type="number" step="1" min="0" name="materialImpact" placeholder="0" />
+            </label>
+            <label>
+              <span className="eyebrow">Schedule days</span>
+              <input className="input" type="number" step="1" min="0" name="scheduleImpactDays" placeholder="0" />
+            </label>
           </div>
         </section>
 
-        <section className="card form-grid">
-          <p className="eyebrow">Proof Photos</p>
-          <input className="input" type="file" name="photos" multiple accept={photoAccept} />
-          <label><span className="eyebrow">Photo captions</span><textarea className="textarea" name="photoCaptions" placeholder="One caption per photo" /></label>
-        </section>
-
-        <button className="button submit-bar" type="submit">Submit field report</button>
+        <button className="button submit-bar" type="submit">Submit report</button>
       </form>
     </div>
   );

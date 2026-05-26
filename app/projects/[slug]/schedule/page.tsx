@@ -2,8 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   getOpsProject,
+  listProjectScheduleRevisions,
   listProjectScheduleTasks,
   saveProjectScheduleAction,
+  setActiveRevisionAction,
   updateProjectScheduleTasksAction,
 } from "@/lib/ops-store";
 import { boardPhotoAccept } from "@/lib/upload-accept";
@@ -14,9 +16,10 @@ type SchedulePageProps = {
 
 export default async function ProjectSchedulePage({ params }: SchedulePageProps) {
   const { slug } = await params;
-  const [project, scheduleTasks] = await Promise.all([
+  const [project, scheduleTasks, revisions] = await Promise.all([
     getOpsProject(slug),
     listProjectScheduleTasks(slug),
+    listProjectScheduleRevisions(slug),
   ]);
 
   if (!project) {
@@ -88,10 +91,28 @@ export default async function ProjectSchedulePage({ params }: SchedulePageProps)
         </div>
 
         <div className="card">
-          <p className="eyebrow">Current Import</p>
-          <h2>{scheduleTasks.length} schedule task(s)</h2>
-          <p className="muted">{project.scheduleFileName || "No schedule file saved yet."}</p>
-          <p className="muted">{project.scheduleImportedAt ? `Imported ${project.scheduleImportedAt.slice(0, 10)}` : "No import date yet."}</p>
+          <p className="eyebrow">Active Schedule</p>
+          <h2>{scheduleTasks.length} task(s)</h2>
+          {revisions.length > 0 ? (
+            <div className="list">
+              {revisions.map((rev) => (
+                <div key={rev.id} className="list-item">
+                  <div className="list-row">
+                    <strong>Rev {rev.revisionNo} — {rev.reason || rev.importedFrom}</strong>
+                    <span className="badge ready">{rev.isBaseline ? "Baseline" : rev.isActive ? "Active" : "Archived"}</span>
+                  </div>
+                  <p className="muted">{rev.taskCount} tasks · {rev.importedAt.slice(0, 10)}{rev.fileName ? ` · ${rev.fileName}` : ""}</p>
+                  {!rev.isActive && (
+                    <form action={setActiveRevisionAction.bind(null, slug, rev.id)}>
+                      <button type="submit" className="button secondary">Set as working schedule</button>
+                    </form>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="muted">No schedule imported yet.</p>
+          )}
         </div>
       </section>
 
@@ -143,8 +164,19 @@ export default async function ProjectSchedulePage({ params }: SchedulePageProps)
             <textarea className="textarea" name="boardNotes" placeholder="Anything visible on the board that should be preserved as context." />
           </label>
 
+          {revisions.length > 0 && (
+            <label>
+              <span className="eyebrow">Reason for this revision</span>
+              <input
+                className="input"
+                name="revisionReason"
+                placeholder="e.g. Owner approved 2-week delay on tile phase"
+              />
+            </label>
+          )}
+
           <div className="button-row">
-            <button className="button" type="submit">Import schedule</button>
+            <button className="button" type="submit">{revisions.length === 0 ? "Import baseline schedule" : "Import new revision"}</button>
             <Link className="button secondary" href={`/projects/${project.id}/board`}>Skip for now</Link>
           </div>
         </form>

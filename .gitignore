@@ -19,6 +19,12 @@ dist/
 # macOS / editor
 .DS_Store
 
+# TypeScript build cache
+tsconfig.tsbuildinfo
+
+# Claude Code local config
+.claude/
+
 # local app data and uploads
 storage/*.json
 storage/uploads/

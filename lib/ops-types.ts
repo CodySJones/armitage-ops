@@ -42,8 +42,22 @@ export type DailyBoardPhoto = {
   uploadedAt: string;
 };
 
+export type ScheduleRevision = {
+  id: string;
+  projectId: string;
+  revisionNo: number;
+  isBaseline: boolean;
+  isActive: boolean;
+  importedAt: string;
+  importedFrom: "csv" | "manual" | "pdf_reference";
+  fileName?: string;
+  reason?: string;
+  taskCount: number;
+};
+
 export type ScheduleTask = {
   id: string;
+  revisionId: string;
   projectId: string;
   taskName: string;
   phaseCode: string;
@@ -130,11 +144,39 @@ export type ChangeOrderDraft = {
   createdAt: string;
 };
 
+export type AlertType =
+  | "PAYMENT_RISK"
+  | "SEQUENCE_VIOLATION"
+  | "PREREQUISITE_FAILURE"
+  | "FALSE_PROGRESS"
+  | "UNOWNED_BLOCKER"
+  | "MISSING_PHOTOS"
+  | "UNREALISTIC_TOMORROW";
+
+export type AlertSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type AlertStatus = "OPEN" | "ACKNOWLEDGED" | "RESOLVED";
+
+export type Alert = {
+  id: string;
+  projectId: string;
+  fieldReportId?: string;
+  alertType: AlertType;
+  severity: AlertSeverity;
+  status: AlertStatus;
+  title: string;
+  detail: string;
+  actionRequired: string;
+  createdAt: string;
+  resolvedAt?: string;
+};
+
 export type OpsState = {
   projects: OpsProject[];
+  scheduleRevisions: ScheduleRevision[];
   scheduleTasks: ScheduleTask[];
   dailyBoards: DailyBoardTask[];
   dailyBoardPhotos: DailyBoardPhoto[];
   fieldReports: FieldReport[];
   changeOrderDrafts: ChangeOrderDraft[];
+  alerts: Alert[];
 };

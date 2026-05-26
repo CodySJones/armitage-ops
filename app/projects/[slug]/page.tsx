@@ -2,10 +2,30 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   getOpsProject,
+  listProjectAlerts,
   listProjectChangeOrders,
   listProjectReports,
   listProjectScheduleTasks,
+  acknowledgeAlertAction,
+  resolveAlertAction,
 } from "@/lib/ops-store";
+
+const SEVERITY_BADGE: Record<string, string> = {
+  CRITICAL: "badge critical",
+  HIGH: "badge high",
+  MEDIUM: "badge medium",
+  LOW: "badge ready",
+};
+
+const ALERT_LABEL: Record<string, string> = {
+  PAYMENT_RISK: "Payment Risk",
+  SEQUENCE_VIOLATION: "Sequence Violation",
+  PREREQUISITE_FAILURE: "Prerequisite",
+  FALSE_PROGRESS: "False Progress",
+  UNOWNED_BLOCKER: "Unowned Blocker",
+  MISSING_PHOTOS: "Missing Photos",
+  UNREALISTIC_TOMORROW: "Unrealistic Plan",
+};
 
 type ProjectPageProps = {
   params: Promise<{ slug: string }>;
@@ -13,11 +33,12 @@ type ProjectPageProps = {
 
 export default async function ProjectPage({ params }: ProjectPageProps) {
   const { slug } = await params;
-  const [project, reports, changeOrders, scheduleTasks] = await Promise.all([
+  const [project, reports, changeOrders, scheduleTasks, alerts] = await Promise.all([
     getOpsProject(slug),
     listProjectReports(slug),
     listProjectChangeOrders(slug),
     listProjectScheduleTasks(slug),
+    listProjectAlerts(slug),
   ]);
 
   if (!project) {
@@ -26,6 +47,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
 
   const variances = reports.flatMap((report) => report.variances);
   const pmFillCount = scheduleTasks.filter((task) => task.needsPmFill).length;
+  const openAlerts = alerts.filter((a) => a.status === "OPEN" || a.status === "ACKNOWLEDGED");
 
   return (
     <div className="grid">
@@ -47,7 +69,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
       <section className="ops-stats">
         <div className="stat"><div className="stat-label">Current phase</div><div className="stat-value">{project.currentPhase || "Unset"}</div></div>
         <div className="stat"><div className="stat-label">Reports</div><div className="stat-value">{reports.length}</div></div>
-        <div className="stat"><div className="stat-label">Variances</div><div className="stat-value">{variances.length}</div></div>
+        <div className="stat"><div className="stat-label">Open alerts</div><div className="stat-value">{openAlerts.length}</div></div>
         <div className="stat"><div className="stat-label">PM fill</div><div className="stat-value">{pmFillCount}</div></div>
       </section>
 
@@ -71,6 +93,41 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
           </div>
         </div>
       </section>
+
+      {openAlerts.length > 0 && (
+        <section className="card">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Requires Action</p>
+              <h2>Open alerts</h2>
+            </div>
+            <span className="kicker">{openAlerts.length} open</span>
+          </div>
+          <div className="list">
+            {openAlerts.map((a) => (
+              <div key={a.id} className="list-item">
+                <div className="list-row">
+                  <strong>{a.title}</strong>
+                  <span className={SEVERITY_BADGE[a.severity] ?? "badge"}>{a.severity}</span>
+                </div>
+                <p className="muted">{ALERT_LABEL[a.alertType] ?? a.alertType} · {a.status}</p>
+                <p className="muted">{a.detail}</p>
+                <p><strong>Action:</strong> {a.actionRequired}</p>
+                <div className="button-row compact-actions">
+                  {a.status === "OPEN" && (
+                    <form action={acknowledgeAlertAction.bind(null, a.id)}>
+                      <button type="submit" className="button secondary">Acknowledge</button>
+                    </form>
+                  )}
+                  <form action={resolveAlertAction.bind(null, a.id)}>
+                    <button type="submit" className="button secondary">Resolve</button>
+                  </form>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="card">
         <p className="eyebrow">Operational Records</p>

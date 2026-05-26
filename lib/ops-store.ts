@@ -3,6 +3,8 @@ import path from "path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type {
+  Alert,
+  AlertStatus,
   ChangeOrderDraft,
   ChangeOrderRequirement,
   DailyBoardPhoto,
@@ -12,11 +14,13 @@ import type {
   OpsProject,
   OpsState,
   PhotoRecord,
+  ScheduleRevision,
   ScheduleTask,
   TaskStatus,
   Variance,
   VarianceType,
 } from "@/lib/ops-types";
+import { AUTO_CLEARING_ALERT_TYPES, evaluateAlerts } from "@/lib/rules-engine";
 
 const storageDir = path.join(process.cwd(), "storage");
 const opsFile = path.join(storageDir, "ops.json");
@@ -25,11 +29,13 @@ const boardPhotoDir = path.join(storageDir, "board-photos");
 
 const seedState: OpsState = {
   projects: [],
+  scheduleRevisions: [],
   scheduleTasks: [],
   dailyBoards: [],
   dailyBoardPhotos: [],
   fieldReports: [],
   changeOrderDrafts: [],
+  alerts: [],
 };
 
 async function ensureOpsStorage() {
@@ -42,17 +48,68 @@ async function ensureOpsStorage() {
   }
 }
 
+function migrateScheduleRevisions(state: OpsState): OpsState {
+  type LegacyTask = ScheduleTask & { revisionId?: string };
+  const untagged = (state.scheduleTasks as LegacyTask[]).filter((t) => !t.revisionId);
+  if (!untagged.length) return state;
+
+  const byProject = new Map<string, LegacyTask[]>();
+  for (const task of untagged) {
+    const bucket = byProject.get(task.projectId) ?? [];
+    bucket.push(task);
+    byProject.set(task.projectId, bucket);
+  }
+
+  const newRevisions: ScheduleRevision[] = [];
+  const updatedTasks = state.scheduleTasks.map((t) => ({ ...t })) as LegacyTask[];
+
+  for (const [projectId, tasks] of byProject) {
+    const existing = state.scheduleRevisions.find((r) => r.projectId === projectId && r.isBaseline);
+    const revId = existing?.id ?? `rev-${projectId}-1`;
+
+    if (!existing) {
+      const project = state.projects.find((p) => p.id === projectId);
+      newRevisions.push({
+        id: revId,
+        projectId,
+        revisionNo: 1,
+        isBaseline: true,
+        isActive: true,
+        importedAt: project?.scheduleImportedAt ?? new Date().toISOString(),
+        importedFrom: (project?.scheduleSource as ScheduleRevision["importedFrom"]) ?? "manual",
+        fileName: project?.scheduleFileName,
+        reason: "Baseline schedule",
+        taskCount: tasks.length,
+      });
+    }
+
+    for (const task of tasks) {
+      const idx = updatedTasks.findIndex((t) => t.id === task.id);
+      if (idx >= 0) updatedTasks[idx] = { ...updatedTasks[idx], revisionId: revId };
+    }
+  }
+
+  return {
+    ...state,
+    scheduleRevisions: [...state.scheduleRevisions, ...newRevisions],
+    scheduleTasks: updatedTasks as ScheduleTask[],
+  };
+}
+
 async function readState(): Promise<OpsState> {
   await ensureOpsStorage();
   const stored = JSON.parse(await fs.readFile(opsFile, "utf8")) as Partial<OpsState>;
-  return {
-    projects: stored.projects ?? seedState.projects,
+  const raw: OpsState = {
+    projects: stored.projects ?? [],
+    scheduleRevisions: stored.scheduleRevisions ?? [],
     scheduleTasks: stored.scheduleTasks ?? [],
     dailyBoards: stored.dailyBoards ?? [],
     dailyBoardPhotos: stored.dailyBoardPhotos ?? [],
     fieldReports: stored.fieldReports ?? [],
     changeOrderDrafts: stored.changeOrderDrafts ?? [],
+    alerts: stored.alerts ?? [],
   };
+  return migrateScheduleRevisions(raw);
 }
 
 async function writeState(state: OpsState) {
@@ -108,7 +165,7 @@ function parseCsvLine(line: string) {
   return cells;
 }
 
-function parseScheduleCsv(projectId: string, input: string): ScheduleTask[] {
+function parseScheduleCsv(projectId: string, input: string): Omit<ScheduleTask, "revisionId">[] {
   const rows = input
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -217,7 +274,10 @@ export async function getOpsProject(projectId: string) {
 }
 
 export async function getDailyBoard(projectId: string) {
-  return (await readState()).dailyBoards.filter((task) => task.projectId === projectId);
+  const tasks = (await readState()).dailyBoards.filter((task) => task.projectId === projectId);
+  if (!tasks.length) return [];
+  const latestDate = tasks.reduce((max, t) => (t.boardDate > max ? t.boardDate : max), tasks[0].boardDate);
+  return tasks.filter((t) => t.boardDate === latestDate);
 }
 
 export async function listDailyBoardPhotos(projectId: string) {
@@ -226,8 +286,29 @@ export async function listDailyBoardPhotos(projectId: string) {
     .sort((a, b) => b.boardDate.localeCompare(a.boardDate));
 }
 
-export async function listProjectScheduleTasks(projectId: string) {
-  return (await readState()).scheduleTasks.filter((task) => task.projectId === projectId);
+export async function listProjectScheduleRevisions(projectId: string): Promise<ScheduleRevision[]> {
+  return (await readState()).scheduleRevisions
+    .filter((r) => r.projectId === projectId)
+    .sort((a, b) => b.revisionNo - a.revisionNo);
+}
+
+export async function listProjectScheduleTasks(projectId: string, revisionId?: string): Promise<ScheduleTask[]> {
+  const state = await readState();
+  if (revisionId) {
+    return state.scheduleTasks.filter((t) => t.revisionId === revisionId);
+  }
+  const active = state.scheduleRevisions.find((r) => r.projectId === projectId && r.isActive);
+  if (active) {
+    return state.scheduleTasks.filter((t) => t.revisionId === active.id);
+  }
+  return state.scheduleTasks.filter((t) => t.projectId === projectId);
+}
+
+export async function getBaselineScheduleTasks(projectId: string): Promise<ScheduleTask[]> {
+  const state = await readState();
+  const baseline = state.scheduleRevisions.find((r) => r.projectId === projectId && r.isBaseline);
+  if (!baseline) return [];
+  return state.scheduleTasks.filter((t) => t.revisionId === baseline.id);
 }
 
 export async function listProjectReports(projectId: string) {
@@ -246,6 +327,45 @@ export async function listProjectChangeOrders(projectId: string) {
 
 export async function getChangeOrder(projectId: string, changeOrderId: string) {
   return (await readState()).changeOrderDrafts.find((draft) => draft.projectId === projectId && draft.id === changeOrderId) ?? null;
+}
+
+export async function listProjectAlerts(projectId: string): Promise<Alert[]> {
+  return (await readState()).alerts
+    .filter((a) => a.projectId === projectId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function listOpenAlerts(): Promise<Alert[]> {
+  return (await readState()).alerts
+    .filter((a) => a.status === "OPEN")
+    .sort((a, b) => {
+      const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+      return (severityOrder[a.severity] ?? 4) - (severityOrder[b.severity] ?? 4);
+    });
+}
+
+export async function acknowledgeAlertAction(alertId: string) {
+  "use server";
+  const state = await readState();
+  state.alerts = state.alerts.map((a) =>
+    a.id === alertId && a.status === "OPEN" ? { ...a, status: "ACKNOWLEDGED" as AlertStatus } : a,
+  );
+  await writeState(state);
+  revalidatePath("/");
+  revalidatePath("/projects");
+}
+
+export async function resolveAlertAction(alertId: string) {
+  "use server";
+  const state = await readState();
+  state.alerts = state.alerts.map((a) =>
+    a.id === alertId && a.status !== "RESOLVED"
+      ? { ...a, status: "RESOLVED" as AlertStatus, resolvedAt: new Date().toISOString() }
+      : a,
+  );
+  await writeState(state);
+  revalidatePath("/");
+  revalidatePath("/projects");
 }
 
 function summarizeVariance(variance: Variance) {
@@ -363,6 +483,25 @@ export async function createFieldReportAction(projectId: string, formData: FormD
   };
 
   state.fieldReports.unshift(report);
+
+  const recentReports = state.fieldReports
+    .filter((r) => r.projectId === projectId && r.id !== reportId)
+    .slice(0, 10);
+  const activeRevision = state.scheduleRevisions.find((r) => r.projectId === projectId && r.isActive);
+  const scheduleTasks = state.scheduleTasks.filter((t) =>
+    activeRevision ? t.revisionId === activeRevision.id : t.projectId === projectId,
+  );
+  const { created: newAlerts, cleared } = evaluateAlerts({ project, scheduleTasks, recentReports, report });
+
+  // Resolve auto-clearing alert types whose condition no longer fires.
+  state.alerts = state.alerts.map((a) => {
+    if (a.projectId === projectId && a.status === "OPEN" && cleared.includes(a.alertType)) {
+      return { ...a, status: "RESOLVED" as AlertStatus, resolvedAt: new Date().toISOString() };
+    }
+    return a;
+  });
+  state.alerts.push(...newAlerts);
+
   if (variance?.requiresChangeOrder === "yes") {
     const draft: ChangeOrderDraft = {
       id: `co-${timestamp}`,
@@ -440,9 +579,36 @@ export async function saveProjectScheduleAction(projectId: string, formData: For
   const boardCapture = await applyBoardCapture(state, projectId, formData);
 
   if (importedTasks.length > 0) {
+    const existingRevisions = state.scheduleRevisions.filter((r) => r.projectId === projectId);
+    const revisionNo = existingRevisions.length + 1;
+    const isBaseline = revisionNo === 1;
+    const revId = `rev-${projectId}-${revisionNo}-${Date.now()}`;
+    const reason = String(formData.get("revisionReason") || "").trim() || (isBaseline ? "Baseline schedule" : `Revision ${revisionNo}`);
+    const importedFrom: ScheduleRevision["importedFrom"] = fileName ? (fileName.toLowerCase().endsWith(".csv") ? "csv" : "pdf_reference") : "manual";
+
+    // Mark all existing revisions as inactive
+    state.scheduleRevisions = state.scheduleRevisions.map((r) =>
+      r.projectId === projectId ? { ...r, isActive: false } : r,
+    );
+
+    state.scheduleRevisions.push({
+      id: revId,
+      projectId,
+      revisionNo,
+      isBaseline,
+      isActive: true,
+      importedAt: new Date().toISOString(),
+      importedFrom,
+      fileName: fileName || undefined,
+      reason,
+      taskCount: importedTasks.length,
+    });
+
+    // Tag new tasks with this revision, keep tasks from older revisions
+    const taggedTasks = importedTasks.map((t) => ({ ...t, revisionId: revId }));
     state.scheduleTasks = [
-      ...state.scheduleTasks.filter((task) => task.projectId !== projectId),
-      ...importedTasks,
+      ...state.scheduleTasks.filter((t) => t.projectId !== projectId || t.revisionId !== revId),
+      ...taggedTasks,
     ];
   }
 
@@ -477,6 +643,22 @@ export async function saveProjectScheduleAction(projectId: string, formData: For
   revalidatePath(`/projects/${projectId}/schedule`);
   revalidatePath(`/projects/${projectId}/board`);
   redirect(`/projects/${projectId}/schedule`);
+}
+
+export async function setActiveRevisionAction(projectId: string, revisionId: string) {
+  "use server";
+  const state = await readState();
+  const target = state.scheduleRevisions.find((r) => r.id === revisionId && r.projectId === projectId);
+  if (!target) throw new Error("Revision not found.");
+
+  state.scheduleRevisions = state.scheduleRevisions.map((r) =>
+    r.projectId === projectId ? { ...r, isActive: r.id === revisionId } : r,
+  );
+
+  await writeState(state);
+  revalidatePath(`/projects/${projectId}/schedule`);
+  revalidatePath(`/projects/${projectId}/board`);
+  revalidatePath("/");
 }
 
 export async function updateProjectScheduleTasksAction(projectId: string, formData: FormData) {
