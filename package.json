@@ -9,7 +9,7 @@
     "dev": "next dev",
     "dev:3001": "NEXT_DIST_DIR=.next-3001 next dev -p 3001",
     "preview:setup:3001": "node scripts/setup-preview-server.mjs",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "test": "node --experimental-strip-types --test 'lib/**/*.test.mjs'",
     "lint": "next lint",
