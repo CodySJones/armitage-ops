@@ -231,6 +231,34 @@ export async function listOpenAlerts(): Promise<Alert[]> {
 // Server actions
 // ---------------------------------------------------------------------------
 
+export async function updateChangeOrderAction(coId: string, formData: FormData) {
+  "use server";
+  const draft = await prisma.changeOrderDraft.findUnique({ where: { id: coId } });
+  if (!draft) throw new Error("CO draft not found.");
+
+  const action = String(formData.get("_action") || "save");
+  const now = new Date().toISOString();
+
+  await prisma.changeOrderDraft.update({
+    where: { id: coId },
+    data: {
+      coNumber: String(formData.get("coNumber") || draft.coNumber),
+      title: String(formData.get("title") || draft.title),
+      aiSummary: String(formData.get("description") || draft.aiSummary),
+      estimatedLaborHours: numberFrom(formData.get("laborHours")),
+      laborRateDollars: numberFrom(formData.get("laborRate")),
+      estimatedMaterialDollars: numberFrom(formData.get("materialDollars")),
+      estimatedScheduleDays: numberFrom(formData.get("scheduleDays")),
+      reviewStatus: action === "approve" ? "approved" : action === "reject" ? "rejected" : "pm_review_required",
+      approvedBy: action === "approve" ? String(formData.get("approvedBy") || "") : (draft.approvedBy ?? null),
+      approvedAt: action === "approve" ? now : (draft.approvedAt ?? null),
+    },
+  });
+
+  revalidatePath(`/projects/${draft.projectId}`);
+  revalidatePath(`/projects/${draft.projectId}/change-orders/${coId}`);
+}
+
 export async function acknowledgeAlertAction(alertId: string) {
   "use server";
   await prisma.alert.update({ where: { id: alertId }, data: { status: "ACKNOWLEDGED" } });

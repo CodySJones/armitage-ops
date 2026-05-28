@@ -232,12 +232,16 @@ model ChangeOrderDraft {
   projectId                String
   fieldReportId            String
   varianceId               String
+  coNumber                 String  @default("")
   title                    String
   aiSummary                String  @default("")
   estimatedLaborHours      Float   @default(0)
+  laborRateDollars         Float   @default(0)
   estimatedMaterialDollars Float   @default(0)
   estimatedScheduleDays    Float   @default(0)
   reviewStatus             String  @default("pm_review_required")
+  approvedBy               String?
+  approvedAt               String?
   createdAt                String
 
   project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)

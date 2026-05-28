@@ -135,12 +135,16 @@ export type ChangeOrderDraft = {
   projectId: string;
   fieldReportId: string;
   varianceId: string;
+  coNumber: string;
   title: string;
   aiSummary: string;
   estimatedLaborHours: number;
+  laborRateDollars: number;
   estimatedMaterialDollars: number;
   estimatedScheduleDays: number;
   reviewStatus: "pm_review_required" | "approved" | "rejected";
+  approvedBy?: string | null;
+  approvedAt?: string | null;
   createdAt: string;
 };
 
