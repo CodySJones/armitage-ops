@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import * as React from "react";
 
 type LaborLogEditorProps = {
   phaseCodes: string[];
@@ -11,7 +11,7 @@ type LaborRow = {
 };
 
 export function LaborLogEditor({ phaseCodes }: LaborLogEditorProps) {
-  const [rows, setRows] = useState<LaborRow[]>([{ id: 1 }]);
+  const [rows, setRows] = React.useState<LaborRow[]>([{ id: 1 }]);
 
   function addRow() {
     setRows((current) => [...current, { id: Date.now() }]);

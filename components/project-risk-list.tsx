@@ -1,5 +1,14 @@
 import Link from "next/link";
-import type { ProjectSummary } from "@/lib/types";
+
+type ProjectSummary = {
+  slug: string;
+  name: string;
+  riskLevel: string;
+  summary: string;
+  nextMilestone: string;
+  baselineVariance: string;
+  workingVariance: string;
+};
 
 export function ProjectRiskList({ projects }: { projects: ProjectSummary[] }) {
   return (

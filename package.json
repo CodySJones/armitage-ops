@@ -19,6 +19,8 @@
   },
   "dependencies": {
     "@prisma/client": "^6.6.0",
+    "@supabase/ssr": "^0.10.3",
+    "@supabase/supabase-js": "^2.106.2",
     "@swc/helpers": "0.5.15",
     "next": "^15.3.3",
     "react": "^19.0.0",

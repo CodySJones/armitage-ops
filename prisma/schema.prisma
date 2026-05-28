@@ -3,91 +3,41 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-enum UserRole {
-  OWNER
-  OFFICE
-  FIELD
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum ProjectStatus {
-  PRECON
-  ACTIVE
-  PAUSED
-  CLOSED
+  precon
+  active
+  paused
+  closed
 }
 
-enum ScheduleTaskStatus {
-  NOT_STARTED
-  IN_PROGRESS
-  COMPLETE
-  BLOCKED
+enum VarianceType {
+  scope
+  schedule
+  labor
+  cost
+  quality
+  legal
+  hidden_condition
+  client_request
+  client_decision
 }
 
-enum DependencyType {
-  FS
-  SS
-  FF
-  SF
-  CHECKLIST
+enum ChangeOrderRequirement {
+  yes
+  no
+  unknown
 }
 
-enum RuleType {
-  REQUIRES_PHASE
-  REQUIRES_TASK
-  BLOCKS_TASK
-  PHOTO_REQUIREMENT
-  HANDOFF_REQUIREMENT
-  PREREQUISITE
-}
-
-enum RuleSeverity {
-  INFO
-  WARN
-  CRITICAL
-}
-
-enum PhotoCategory {
-  ROOM_OVERVIEW
-  DETAIL
-  HIDDEN_WORK
-  BLOCKER_EVIDENCE
-  HANDOFF_READY
-}
-
-enum ReportSourceType {
-  DIRECT_ENTRY
-  WHITEBOARD_PHOTO
-}
-
-enum ReportConfirmationStatus {
-  PENDING_CONFIRMATION
-  CONFIRMED
-}
-
-enum ReportItemType {
-  COMPLETED
-  STARTED_NOT_FINISHED
-  PLANNED_TOMORROW
-  NEEDED_NEXT
-}
-
-enum BlockerType {
-  MATERIAL
-  SUBCONTRACTOR
-  INSPECTION
-  DECISION
-  SITE_CONDITION
-  OTHER
-}
-
-enum BlockerStatus {
-  OPEN
-  IN_PROGRESS
-  RESOLVED
+enum TaskStatus {
+  planned
+  completed
+  incomplete
+  blocked
 }
 
 enum AlertType {
@@ -113,231 +63,201 @@ enum AlertStatus {
   RESOLVED
 }
 
-enum MilestoneConditionType {
-  TASK_COMPLETE
-  PHASE_COMPLETE
-  PHOTO_SET_PRESENT
-  NO_OPEN_BLOCKERS
-  CUSTOM_CHECKLIST
-}
-
-enum EvidenceType {
-  MILESTONE
-  SCHEDULE_TASK
-  BLOCKER
-  RULE
-  PHOTO_REQUIREMENT
-  DAILY_REPORT_ITEM
-}
-
-model User {
-  id              String     @id @default(uuid())
-  name            String
-  email           String     @unique
-  role            UserRole
-  active          Boolean    @default(true)
-  createdAt       DateTime   @default(now())
-  authoredSchedules Schedule[]
-  submittedReports DailyReport[]
-  ownedBlockers   Blocker[]
-  ownedAlerts     Alert[]
-}
-
 model Project {
-  id                String             @id @default(uuid())
-  code              String             @unique
-  name              String
-  clientName        String?
-  address           String?
-  status            ProjectStatus      @default(PRECON)
-  currentPhase      String?
-  startDate         DateTime?
-  targetEndDate     DateTime?
-  createdAt         DateTime           @default(now())
-  paymentMilestones PaymentMilestone[]
-  schedules         Schedule[]
-  phaseRules        PhaseRule[]
-  photoRequirements PhotoRequirement[]
-  dailyReports      DailyReport[]
-  blockers          Blocker[]
+  id                 String        @id
+  name               String
+  clientName         String
+  address            String
+  status             ProjectStatus @default(precon)
+  currentPhase       String        @default("")
+  plannedStartDate   String?
+  plannedEndDate     String
+  projectManager     String?
+  fieldLead          String?
+  scheduleSource     String?
+  scheduleFileName   String?
+  scheduleImportedAt String?
+  actualEndDate      String?
+
+  scheduleRevisions ScheduleRevision[]
+  scheduleTasks     ScheduleTask[]
+  dailyBoardTasks   DailyBoardTask[]
+  dailyBoardPhotos  DailyBoardPhoto[]
+  fieldReports      FieldReport[]
+  changeOrderDrafts ChangeOrderDraft[]
   alerts            Alert[]
 }
 
-model PaymentMilestone {
-  id                 String               @id @default(uuid())
-  projectId          String
-  sequenceNo         Int
-  name               String
-  triggerDescription String
-  amountCents        Int
-  plannedBillDate    DateTime?
-  active             Boolean              @default(true)
-  project            Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  conditions         MilestoneCondition[]
-}
+model ScheduleRevision {
+  id           String  @id
+  projectId    String
+  revisionNo   Int
+  isBaseline   Boolean @default(false)
+  isActive     Boolean @default(false)
+  importedAt   String
+  importedFrom String
+  fileName     String?
+  reason       String?
+  taskCount    Int     @default(0)
 
-model MilestoneCondition {
-  id            String                 @id @default(uuid())
-  milestoneId   String
-  conditionType MilestoneConditionType
-  referenceKey  String
-  required      Boolean                @default(true)
-  milestone     PaymentMilestone       @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
-}
-
-model Schedule {
-  id            String         @id @default(uuid())
-  projectId     String
-  revisionNo    Int
-  isBaseline    Boolean        @default(false)
-  isActive      Boolean        @default(false)
-  effectiveDate DateTime
-  authorId      String
-  reason        String
-  importedFrom  String?
-  createdAt     DateTime       @default(now())
-  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  author        User           @relation(fields: [authorId], references: [id], onDelete: Restrict)
-  tasks         ScheduleTask[]
+  project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   ScheduleTask[]
 
   @@unique([projectId, revisionNo])
 }
 
 model ScheduleTask {
-  id             String              @id @default(uuid())
-  scheduleId     String
-  externalRef    String?
-  phaseCode      String
-  area           String?
-  name           String
-  startDate      DateTime?
-  endDate        DateTime?
-  durationDays   Int?
-  status         ScheduleTaskStatus  @default(NOT_STARTED)
-  sortOrder      Int                 @default(0)
-  schedule       Schedule            @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
-  dependencies   TaskDependency[]    @relation("DependentTask")
-  requiredBy     TaskDependency[]    @relation("PrerequisiteTask")
-  reportItems    DailyReportItem[]
-}
-
-model TaskDependency {
-  id                String         @id @default(uuid())
-  scheduleTaskId    String
-  dependsOnTaskId   String
-  dependencyType    DependencyType
-  lagDays           Int            @default(0)
-  scheduleTask      ScheduleTask   @relation("DependentTask", fields: [scheduleTaskId], references: [id], onDelete: Cascade)
-  dependsOnTask     ScheduleTask   @relation("PrerequisiteTask", fields: [dependsOnTaskId], references: [id], onDelete: Cascade)
-}
-
-model PhaseRule {
-  id              String       @id @default(uuid())
-  projectId       String?
-  phaseCode       String
-  ruleType        RuleType
-  subjectKey      String
-  requiredKey     String
-  severity        RuleSeverity @default(WARN)
-  messageTemplate String
-  active          Boolean      @default(true)
-  project         Project?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-}
-
-model PhotoRequirement {
-  id                   String        @id @default(uuid())
-  projectId            String?
-  phaseCode            String
-  taskKey              String?
-  category             PhotoCategory
-  minCount             Int           @default(1)
-  requiredWhenComplete Boolean       @default(true)
-  project              Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-}
-
-model DailyReport {
-  id                 String                    @id @default(uuid())
-  projectId          String
-  reportDate         DateTime
-  crewName           String
-  submittedById      String
-  currentPhase       String
-  areasWorked        Json
-  plannedTomorrow    String?
-  neededNext         String?
-  sourceType         ReportSourceType          @default(DIRECT_ENTRY)
-  confirmationStatus ReportConfirmationStatus  @default(CONFIRMED)
-  createdAt          DateTime                  @default(now())
-  project            Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  submittedBy        User                      @relation(fields: [submittedById], references: [id], onDelete: Restrict)
-  items              DailyReportItem[]
-  blockers           Blocker[]
-  photos             ReportPhoto[]
-  alerts             Alert[]
-}
-
-model DailyReportItem {
-  id                   String           @id @default(uuid())
-  dailyReportId        String
-  itemType             ReportItemType
-  phaseCode            String
-  area                 String?
-  taskName             String
-  linkedScheduleTaskId String?
-  dailyReport          DailyReport      @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
-  linkedScheduleTask   ScheduleTask?    @relation(fields: [linkedScheduleTaskId], references: [id], onDelete: SetNull)
-}
-
-model Blocker {
-  id            String         @id @default(uuid())
+  id            String  @id
+  revisionId    String
   projectId     String
-  dailyReportId String?
-  title         String
-  description   String
-  blockerType   BlockerType
-  ownerId       String?
-  dueDate       DateTime?
-  status        BlockerStatus  @default(OPEN)
-  createdAt     DateTime       @default(now())
-  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  dailyReport   DailyReport?   @relation(fields: [dailyReportId], references: [id], onDelete: SetNull)
-  owner         User?          @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  alertEvidence AlertEvidence[]
+  taskName      String
+  phaseCode     String
+  area          String  @default("")
+  plannedStart  String  @default("")
+  plannedFinish String  @default("")
+  owner         String  @default("")
+  dependency    String  @default("")
+  milestone     Boolean @default(false)
+  sourceNotes   String?
+  readinessNote String?
+  needsPmFill   Boolean @default(false)
+
+  revision ScheduleRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  project  Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
-model ReportPhoto {
-  id           String        @id @default(uuid())
-  dailyReportId String
-  category     PhotoCategory
-  storageKey   String
-  caption      String?
-  uploadedAt   DateTime      @default(now())
-  dailyReport  DailyReport   @relation(fields: [dailyReportId], references: [id], onDelete: Cascade)
+model DailyBoardTask {
+  id                  String  @id
+  projectId           String
+  boardDate           String
+  phaseCode           String
+  area                String  @default("")
+  taskName            String
+  owner               String  @default("")
+  plannedHours        Float   @default(0)
+  readinessDependency String?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model DailyBoardPhoto {
+  id         String  @id
+  projectId  String
+  boardDate  String
+  fileName   String
+  storageKey String
+  notes      String?
+  uploadedAt String
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model FieldReport {
+  id                      String   @id
+  projectId               String
+  reportDate              String
+  submittedBy             String
+  crewMembers             String[] @default([])
+  plannedTaskIds          String[] @default([])
+  blockers                String[] @default([])
+  tomorrowRecommendations String   @default("")
+  createdAt               String
+
+  project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  laborEntries      LaborEntry[]
+  tasks             FieldTask[]
+  variances         Variance[]
+  photos            PhotoRecord[]
+  changeOrderDrafts ChangeOrderDraft[]
+  alerts            Alert[]
+}
+
+model LaborEntry {
+  id            String  @id
+  fieldReportId String
+  employeeName  String
+  phaseCode     String
+  hours         Float
+  notes         String?
+
+  fieldReport FieldReport @relation(fields: [fieldReportId], references: [id], onDelete: Cascade)
+}
+
+model FieldTask {
+  id            String     @id
+  fieldReportId String
+  boardTaskId   String?
+  phaseCode     String
+  area          String     @default("")
+  taskName      String
+  status        TaskStatus
+  note          String?
+
+  fieldReport FieldReport @relation(fields: [fieldReportId], references: [id], onDelete: Cascade)
+}
+
+model PhotoRecord {
+  id                String  @id
+  fieldReportId     String
+  fileName          String
+  storageKey        String
+  caption           String  @default("")
+  relatedVarianceId String?
+
+  fieldReport FieldReport @relation(fields: [fieldReportId], references: [id], onDelete: Cascade)
+}
+
+model Variance {
+  id                             String                 @id
+  fieldReportId                  String
+  type                           VarianceType
+  description                    String
+  discoveredBy                   String                 @default("")
+  discoveredAt                   String
+  affectedArea                   String                 @default("")
+  relatedPhotoIds                String[]               @default([])
+  estimatedLaborImpactHours      Float                  @default(0)
+  estimatedMaterialImpactDollars Float                  @default(0)
+  estimatedScheduleImpactDays    Float                  @default(0)
+  requiresChangeOrder            ChangeOrderRequirement @default(unknown)
+  clientNotified                 Boolean                @default(false)
+  internalNotes                  String                 @default("")
+
+  fieldReport       FieldReport        @relation(fields: [fieldReportId], references: [id], onDelete: Cascade)
+  changeOrderDrafts ChangeOrderDraft[]
+}
+
+model ChangeOrderDraft {
+  id                       String  @id
+  projectId                String
+  fieldReportId            String
+  varianceId               String
+  title                    String
+  aiSummary                String  @default("")
+  estimatedLaborHours      Float   @default(0)
+  estimatedMaterialDollars Float   @default(0)
+  estimatedScheduleDays    Float   @default(0)
+  reviewStatus             String  @default("pm_review_required")
+  createdAt                String
+
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fieldReport FieldReport @relation(fields: [fieldReportId], references: [id], onDelete: Cascade)
+  variance    Variance    @relation(fields: [varianceId], references: [id], onDelete: Cascade)
 }
 
 model Alert {
-  id             String          @id @default(uuid())
+  id             String        @id
   projectId      String
-  dailyReportId  String?
+  fieldReportId  String?
   alertType      AlertType
   severity       AlertSeverity
-  status         AlertStatus     @default(OPEN)
+  status         AlertStatus   @default(OPEN)
   title          String
   detail         String
   actionRequired String
-  ownerId        String?
-  createdAt      DateTime        @default(now())
-  resolvedAt     DateTime?
-  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  dailyReport    DailyReport?    @relation(fields: [dailyReportId], references: [id], onDelete: SetNull)
-  owner          User?           @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  evidence       AlertEvidence[]
-}
+  createdAt      String
+  resolvedAt     String?
 
-model AlertEvidence {
-  id           String       @id @default(uuid())
-  alertId      String
-  evidenceType EvidenceType
-  evidenceId   String
-  alert        Alert        @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fieldReport FieldReport? @relation(fields: [fieldReportId], references: [id], onDelete: SetNull)
 }

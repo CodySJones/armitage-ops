@@ -6,8 +6,11 @@ This app is designed for Supabase auth, Postgres, and private photo storage.
 2. Run `supabase/schema.sql` in the SQL editor or through the Supabase CLI.
 3. Add these Vercel environment variables:
    - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   - `DATABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
+   
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY` is also supported as a fallback for older Supabase projects, but new projects should use the publishable key shown in the Supabase dashboard.
 4. Keep the `field-report-photos` bucket private. Signed URLs should be generated for PM/office review screens.
 5. Do not automate client delivery of change orders. The database status model stops at PM review / manual send.
 

@@ -1,4 +1,10 @@
-import type { AlertSummary } from "@/lib/types";
+type AlertSummary = {
+  project: string;
+  title: string;
+  severity: string;
+  detail: string;
+  action: string;
+};
 
 export function AlertList({ alerts }: { alerts: AlertSummary[] }) {
   return (
