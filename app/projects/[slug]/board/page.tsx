@@ -36,10 +36,7 @@ export default async function BoardPage({ params }: BoardPageProps) {
       ? `$${variance.estimatedMaterialImpactDollars}`
       : variance.estimatedMaterialImpact || "material TBD";
 
-  async function saveBoard(formData: FormData) {
-    "use server";
-    await saveTodayBoardAction(slug, formData);
-  }
+  const saveBoard = saveTodayBoardAction.bind(null, slug);
 
   const today = new Date().toISOString().slice(0, 10);
 
