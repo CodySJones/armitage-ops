@@ -19,6 +19,7 @@ import type {
   VarianceType,
 } from "@/lib/ops-types";
 import { AUTO_CLEARING_ALERT_TYPES, evaluateAlerts } from "@/lib/rules-engine";
+import { uploadFile } from "@/utils/supabase/storage";
 
 // ---------------------------------------------------------------------------
 // Prisma singleton — prevents hot-reload from spawning multiple clients
@@ -205,6 +206,12 @@ export async function listProjectReports(projectId: string): Promise<FieldReport
 export async function getFieldReport(projectId: string, reportId: string): Promise<FieldReport | null> {
   const report = await prisma.fieldReport.findFirst({ where: { id: reportId, projectId }, include: reportInclude });
   return report ? mapReport(report) : null;
+}
+
+export async function getReportPhotoUrls(photos: PhotoRecord[]): Promise<Record<string, string>> {
+  if (!photos.length) return {};
+  const { getSignedUrls } = await import("@/utils/supabase/storage");
+  return getSignedUrls(photos.map((p) => p.storageKey));
 }
 
 export async function listProjectChangeOrders(projectId: string): Promise<ChangeOrderDraft[]> {
@@ -430,11 +437,16 @@ export async function createFieldReportAction(projectId: string, formData: FormD
     internalNotes: String(formData.get("internalNotes") || ""),
   } : null;
 
-  // Photos (metadata only — actual file upload via Supabase Storage to be added)
+  // Photos — upload to Supabase Storage, store metadata
   const photos: any[] = [];
   const uploaded = formData.getAll("photos").filter((e): e is File => e instanceof File && e.size > 0);
   const captions = splitLines(formData.get("photoCaptions"));
-  uploaded.forEach((file, i) => photos.push({ id: `photo-${ts}-${i}`, fieldReportId: reportId, fileName: file.name, storageKey: `${projectId}/${reportId}/${file.name}`, caption: captions[i] ?? "", relatedVarianceId: null }));
+  for (let i = 0; i < uploaded.length; i++) {
+    const file = uploaded[i];
+    const storageKey = `${projectId}/${reportId}/${ts}-${i}-${file.name}`;
+    try { await uploadFile(file, storageKey); } catch (err) { console.error("Photo upload failed:", err); }
+    photos.push({ id: `photo-${ts}-${i}`, fieldReportId: reportId, fileName: file.name, storageKey, caption: captions[i] ?? "", relatedVarianceId: null });
+  }
 
   // Write report + related records
   await prisma.$transaction(async (tx) => {
@@ -511,11 +523,13 @@ export async function saveTodayBoardAction(projectId: string, formData: FormData
 
   const boardPhoto = formData.get("boardPhoto") as File | null;
   if (boardPhoto && boardPhoto.size > 0) {
+    const storageKey = `board/${projectId}/${boardDate}/${Date.now()}-${boardPhoto.name}`;
+    try { await uploadFile(boardPhoto, storageKey); } catch (err) { console.error("Board photo upload failed:", err); }
     await prisma.dailyBoardPhoto.deleteMany({ where: { projectId, boardDate } });
     await prisma.dailyBoardPhoto.create({
       data: {
         id: `bphoto-${projectId}-${boardDate}-${Date.now()}`, projectId, boardDate,
-        fileName: boardPhoto.name, storageKey: `board/${projectId}/${boardDate}/${boardPhoto.name}`,
+        fileName: boardPhoto.name, storageKey,
         notes: boardNotes || null, uploadedAt: new Date().toISOString(),
       },
     });

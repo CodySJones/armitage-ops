@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getDailyBoard, getFieldReport, getOpsProject, listProjectChangeOrders } from "@/lib/ops-store";
+import { getDailyBoard, getFieldReport, getOpsProject, getReportPhotoUrls, listProjectChangeOrders } from "@/lib/ops-store";
 
 type ReportPageProps = {
   params: Promise<{ slug: string; reportId: string }>;
@@ -13,6 +13,8 @@ export default async function ReportPage({ params }: ReportPageProps) {
     getFieldReport(slug, reportId),
     listProjectChangeOrders(slug),
   ]);
+
+  const photoUrls = report ? await getReportPhotoUrls(report.photos) : {};
 
   if (!project || !report) {
     notFound();
@@ -94,6 +96,31 @@ export default async function ReportPage({ params }: ReportPageProps) {
           )) : <p className="muted">No variances logged.</p>}
         </div>
       </section>
+
+      {report.photos.length > 0 && (
+        <section className="card">
+          <p className="eyebrow">Photos</p>
+          <h2>Site documentation</h2>
+          <div className="photo-grid">
+            {report.photos.map((photo) => {
+              const url = photoUrls[photo.storageKey];
+              return (
+                <div key={photo.id} className="photo-item">
+                  {url ? (
+                    <a href={url} target="_blank" rel="noopener noreferrer">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt={photo.caption || photo.fileName} className="photo-thumb" />
+                    </a>
+                  ) : (
+                    <div className="photo-placeholder">{photo.fileName}</div>
+                  )}
+                  {photo.caption && <p className="photo-caption">{photo.caption}</p>}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       <section className="columns">
         <div className="card">

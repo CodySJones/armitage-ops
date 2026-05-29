@@ -533,6 +533,47 @@ textarea {
   border: 0;
 }
 
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.photo-item {
+  display: grid;
+  gap: 6px;
+}
+
+.photo-thumb {
+  width: 100%;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+}
+
+.photo-placeholder {
+  width: 100%;
+  aspect-ratio: 4/3;
+  background: var(--bg-accent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+  padding: 8px;
+  text-align: center;
+}
+
+.photo-caption {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin: 0;
+}
+
 @media (max-width: 1024px) {
   .grid.dashboard,
   .setup-grid,
